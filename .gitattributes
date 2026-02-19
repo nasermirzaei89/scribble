@@ -1,0 +1,8 @@
+# Force Unix line endings even on Windows
+* text=auto eol=lf
+
+*.min.css -diff
+*.min.js -diff
+*.min.js.map -diff
+
+*.gohtml diff=html
