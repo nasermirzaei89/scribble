@@ -15,7 +15,16 @@ type User struct {
 
 type UserRepository interface {
 	Insert(ctx context.Context, user *User) (err error)
+	Find(ctx context.Context, userID string) (user *User, err error)
 	FindByUsername(ctx context.Context, username string) (user *User, err error)
+}
+
+type UserNotFoundError struct {
+	ID string
+}
+
+func (err UserNotFoundError) Error() string {
+	return fmt.Sprintf("user with id %q not found", err.ID)
 }
 
 type UserByUsernameNotFoundError struct {
@@ -33,3 +42,5 @@ type UserAlreadyExistsError struct {
 func (err UserAlreadyExistsError) Error() string {
 	return fmt.Sprintf("user with username %q already exists", err.Username)
 }
+
+var ErrCurrentUserNotFound = fmt.Errorf("current user not found")

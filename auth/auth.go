@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authcontext "github.com/nasermirzaei89/scribble/auth/context"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -128,4 +129,27 @@ func (svc *Service) GetSession(ctx context.Context, sessionID string) (*Session,
 	}
 
 	return session, nil
+}
+
+func (svc *Service) GetUser(ctx context.Context, userID string) (*User, error) {
+	user, err := svc.userRepo.Find(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user by id: %w", err)
+	}
+
+	return user, nil
+}
+
+func (svc *Service) GetCurrentUser(ctx context.Context) (*User, error) {
+	sub := authcontext.GetSubject(ctx)
+	if sub == authcontext.Anonymous {
+		return nil, ErrCurrentUserNotFound
+	}
+
+	user, err := svc.GetUser(ctx, sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current user: %w", err)
+	}
+
+	return user, nil
 }

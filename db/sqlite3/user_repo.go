@@ -69,6 +69,27 @@ func (repo *UserRepository) Insert(ctx context.Context, user *auth.User) error {
 	return nil
 }
 
+func (repo *UserRepository) Find(ctx context.Context, userID string) (*auth.User, error) {
+	q := sq.Select(userColumns()...).
+		From(tableUsers).
+		Where(sq.Eq{userFieldID: userID})
+
+	q = q.RunWith(repo.db)
+
+	row := q.QueryRowContext(ctx)
+
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &auth.UserNotFoundError{ID: userID}
+		}
+
+		return nil, fmt.Errorf("failed to scan user: %w", err)
+	}
+
+	return user, nil
+}
+
 func (repo *UserRepository) FindByUsername(ctx context.Context, username string) (*auth.User, error) {
 	q := sq.Select(userColumns()...).
 		From(tableUsers).

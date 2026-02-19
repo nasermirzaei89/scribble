@@ -9,18 +9,18 @@ import (
 	"os/signal"
 
 	"github.com/gorilla/sessions"
-	_ "github.com/joho/godotenv/autoload"
 	"github.com/nasermirzaei89/env"
 	"github.com/nasermirzaei89/scribble/auth"
 	"github.com/nasermirzaei89/scribble/contents"
 	"github.com/nasermirzaei89/scribble/db/sqlite3"
 	"github.com/nasermirzaei89/scribble/random"
 	"github.com/nasermirzaei89/scribble/server"
+	"github.com/nasermirzaei89/scribble/web"
 )
 
 type App struct {
 	server  *server.Server
-	handler *HTTPHandler
+	handler *web.HTTPHandler
 	db      *sql.DB
 }
 
@@ -49,7 +49,7 @@ func NewApp(ctx context.Context) (*App, error) {
 	csrfAuthKeys := []byte(env.GetString("CSRF_AUTH_KEY", random.String(32)))
 	csrfTrustedOrigins := env.GetStringSlice("CSRF_TRUSTED_ORIGINS", []string{})
 
-	httpHandler, err := NewHTTPHandler(authSvc, contentsSvc, cookieStore, sessionName, csrfAuthKeys, csrfTrustedOrigins)
+	httpHandler, err := web.NewHTTPHandler(authSvc, contentsSvc, cookieStore, sessionName, csrfAuthKeys, csrfTrustedOrigins)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP handler: %w", err)
 	}
@@ -103,4 +103,22 @@ func newServer() *server.Server {
 	}
 
 	return server
+}
+
+func getLogLevelFromEnv() slog.Level {
+	levelStr := env.GetString("LOG_LEVEL", "info")
+	switch levelStr {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		slog.Warn("unknown log level, defaulting to info", "level", levelStr)
+
+		return slog.LevelInfo
+	}
 }

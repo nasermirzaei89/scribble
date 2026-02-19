@@ -5,10 +5,19 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+
+	"github.com/SladkyCitron/slogcolor"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
 	ctx := context.Background()
+
+	{
+		opts := slogcolor.DefaultOptions
+		opts.Level = getLogLevelFromEnv()
+		slog.SetDefault(slog.New(slogcolor.NewHandler(os.Stderr, opts)))
+	}
 
 	err := run(ctx)
 	if err != nil {
