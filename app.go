@@ -62,6 +62,10 @@ func NewApp(ctx context.Context) (*App, error) {
 	authzClient := authorization.NewClient(authzSvc)
 	authSvc := authentication.NewService(userRepo, sessionRepo, authzClient)
 
+	if err := authSvc.LoadBloomFilter(ctx, 10_000, 0.01); err != nil {
+		return nil, fmt.Errorf("failed to load bloom filter: %w", err)
+	}
+
 	contentsSvc := contents.NewService(postRepo, authzClient)
 	discussSvc := discuss.NewService(commentRepo, authzClient)
 	reactionsSvc := reactions.NewService(userReactionRepo, authzClient)

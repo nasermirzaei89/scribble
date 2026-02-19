@@ -16,6 +16,7 @@ type Service struct {
 	userRepo    UserRepository
 	sessionRepo SessionRepository
 	authzClient *authorization.Client
+	bloomFilter *BloomFilter
 }
 
 func NewService(userRepo UserRepository, sessionRepo SessionRepository, authzClient *authorization.Client) *Service {
@@ -24,6 +25,26 @@ func NewService(userRepo UserRepository, sessionRepo SessionRepository, authzCli
 		sessionRepo: sessionRepo,
 		authzClient: authzClient,
 	}
+}
+
+func (svc *Service) LoadBloomFilter(ctx context.Context, minCapacity uint, falsePositiveRate float64) error {
+	usernames, err := svc.userRepo.ListUsernames(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list usernames for bloom filter: %w", err)
+	}
+
+	capacity := uint(len(usernames))
+	if capacity < minCapacity {
+		capacity = minCapacity
+	}
+
+	bf := NewBloomFilter(capacity, falsePositiveRate)
+	for _, u := range usernames {
+		bf.Add(u)
+	}
+
+	svc.bloomFilter = bf
+	return nil
 }
 
 func HashPassword(password string) (string, error) {
@@ -37,12 +58,8 @@ func HashPassword(password string) (string, error) {
 
 func (svc *Service) Register(ctx context.Context, username, password string) error {
 	// TODO: validate username and password
-	_, err := svc.userRepo.FindByUsername(ctx, username)
-	if err != nil {
-		if _, ok := errors.AsType[*UserByUsernameNotFoundError](err); !ok {
-			return fmt.Errorf("failed to check if username already exists: %w", err)
-		}
-	} else {
+
+	if svc.bloomFilter != nil && svc.bloomFilter.Test(username) {
 		return &UserAlreadyExistsError{Username: username}
 	}
 
@@ -60,7 +77,20 @@ func (svc *Service) Register(ctx context.Context, username, password string) err
 
 	err = svc.userRepo.Insert(ctx, user)
 	if err != nil {
+		var alreadyExistsErr *UserAlreadyExistsError
+		if errors.As(err, &alreadyExistsErr) {
+			if svc.bloomFilter != nil {
+				svc.bloomFilter.Add(username)
+			}
+
+			return alreadyExistsErr
+		}
+
 		return fmt.Errorf("failed to register user: %w", err)
+	}
+
+	if svc.bloomFilter != nil {
+		svc.bloomFilter.Add(username)
 	}
 
 	err = svc.authzClient.AddToGroup(ctx, user.ID, authcontext.Authenticated)

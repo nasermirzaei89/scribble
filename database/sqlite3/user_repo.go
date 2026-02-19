@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/nasermirzaei89/scribble/authentication"
@@ -63,6 +64,10 @@ func (repo *UserRepository) Insert(ctx context.Context, user *authentication.Use
 
 	_, err := q.ExecContext(ctx)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.username") {
+			return &authentication.UserAlreadyExistsError{Username: user.Username}
+		}
+
 		return fmt.Errorf("failed to exec insert: %w", err)
 	}
 
@@ -88,6 +93,33 @@ func (repo *UserRepository) Find(ctx context.Context, userID string) (*authentic
 	}
 
 	return user, nil
+}
+
+func (repo *UserRepository) ListUsernames(ctx context.Context) ([]string, error) {
+	q := sq.Select(userFieldUsername).From(tableUsers).RunWith(repo.db)
+
+	rows, err := q.QueryContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query usernames: %w", err)
+	}
+	defer rows.Close()
+
+	var usernames []string
+
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, fmt.Errorf("failed to scan username: %w", err)
+		}
+
+		usernames = append(usernames, username)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate usernames: %w", err)
+	}
+
+	return usernames, nil
 }
 
 func (repo *UserRepository) FindByUsername(ctx context.Context, username string) (*authentication.User, error) {
