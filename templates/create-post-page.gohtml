@@ -2,6 +2,8 @@
 <main>
     <h1>Create Post</h1>
     <form method="POST" action="/create-post">
+        {{ .csrfField }}
+
         <div>
             <label for="content">Content:</label>
             <textarea id="content" name="content" rows="10" required></textarea>

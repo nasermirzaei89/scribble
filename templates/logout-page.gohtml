@@ -2,6 +2,8 @@
 <main>
     <h1>Logout</h1>
     <form action="/logout" method="POST">
+        {{ .csrfField }}
+
         <button type="submit">Logout</button>
     </form>
 </main>

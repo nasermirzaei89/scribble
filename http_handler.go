@@ -9,6 +9,7 @@ import (
 	"maps"
 	"net/http"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/nasermirzaei89/scribble/auth"
 	"github.com/nasermirzaei89/scribble/contents"
@@ -20,7 +21,8 @@ var templatesFS embed.FS
 const defaultSiteTitle = "Scribble"
 
 type HTTPHandler struct {
-	mux         http.ServeMux
+	mux         *http.ServeMux
+	handler     http.Handler
 	tpl         *template.Template
 	authSvc     *auth.Service
 	contentsSvc *contents.Service
@@ -30,7 +32,14 @@ type HTTPHandler struct {
 
 var _ http.Handler = (*HTTPHandler)(nil)
 
-func NewHTTPHandler(authSvc *auth.Service, contentsSvc *contents.Service, cookieStore *sessions.CookieStore, sessionName string) (*HTTPHandler, error) {
+func NewHTTPHandler(
+	authSvc *auth.Service,
+	contentsSvc *contents.Service,
+	cookieStore *sessions.CookieStore,
+	sessionName string,
+	csrfAuthKeys []byte,
+	csrfTrustedOrigins []string,
+) (*HTTPHandler, error) {
 	httpHandler := &HTTPHandler{
 		authSvc:     authSvc,
 		contentsSvc: contentsSvc,
@@ -38,22 +47,36 @@ func NewHTTPHandler(authSvc *auth.Service, contentsSvc *contents.Service, cookie
 		sessionName: sessionName,
 	}
 
-	tpl, err := template.ParseFS(templatesFS, "templates/*.gohtml")
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse templates: %w", err)
+	{
+		tpl, err := template.ParseFS(templatesFS, "templates/*.gohtml")
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse templates: %w", err)
+		}
+
+		httpHandler.tpl = tpl
 	}
 
-	httpHandler.tpl = tpl
+	{
+		httpHandler.mux = &http.ServeMux{}
+		httpHandler.handler = httpHandler.mux
 
-	httpHandler.mux = http.ServeMux{}
+		httpHandler.registerRoutes()
+	}
 
-	httpHandler.registerRoutes()
+	{
+		csrfMiddleware := csrf.Protect(
+			csrfAuthKeys,
+			csrf.TrustedOrigins(csrfTrustedOrigins),
+		)
+
+		httpHandler.handler = csrfMiddleware(httpHandler.handler)
+	}
 
 	return httpHandler, nil
 }
 
 func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mux.ServeHTTP(w, r)
+	h.handler.ServeHTTP(w, r)
 }
 
 func (h *HTTPHandler) registerRoutes() {
@@ -120,7 +143,11 @@ func (h *HTTPHandler) HandleHomePage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPHandler) HandleRegisterPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, r, "register-page.gohtml", nil)
+	data := map[string]any{
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+
+	h.renderTemplate(w, r, "register-page.gohtml", data)
 }
 
 func (h *HTTPHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +172,11 @@ func (h *HTTPHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPHandler) HandleLoginPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, r, "login-page.gohtml", nil)
+	data := map[string]any{
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+
+	h.renderTemplate(w, r, "login-page.gohtml", data)
 }
 
 func (h *HTTPHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -225,7 +256,11 @@ func (h *HTTPHandler) deleteSessionID(w http.ResponseWriter, r *http.Request) er
 }
 
 func (h *HTTPHandler) HandleLogoutPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, r, "logout-page.gohtml", nil)
+	data := map[string]any{
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+
+	h.renderTemplate(w, r, "logout-page.gohtml", data)
 }
 
 func (h *HTTPHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
@@ -254,7 +289,11 @@ func (h *HTTPHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPHandler) HandleCreatePostPage(w http.ResponseWriter, r *http.Request) {
-	h.renderTemplate(w, r, "create-post-page.gohtml", nil)
+	data := map[string]any{
+		csrf.TemplateTag: csrf.TemplateField(r),
+	}
+
+	h.renderTemplate(w, r, "create-post-page.gohtml", data)
 }
 
 func (h *HTTPHandler) HandleCreatePost(w http.ResponseWriter, r *http.Request) {

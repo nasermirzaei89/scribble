@@ -44,10 +44,12 @@ func NewApp(ctx context.Context) (*App, error) {
 
 	sessionName := env.GetString("SESSION_NAME", "scribble-"+random.String(4))
 	sessionKey := env.GetString("SESSION_KEY", random.String(32))
-
 	cookieStore := sessions.NewCookieStore([]byte(sessionKey))
 
-	httpHandler, err := NewHTTPHandler(authSvc, contentsSvc, cookieStore, sessionName)
+	csrfAuthKeys := []byte(env.GetString("CSRF_AUTH_KEY", random.String(32)))
+	csrfTrustedOrigins := env.GetStringSlice("CSRF_TRUSTED_ORIGINS", []string{})
+
+	httpHandler, err := NewHTTPHandler(authSvc, contentsSvc, cookieStore, sessionName, csrfAuthKeys, csrfTrustedOrigins)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP handler: %w", err)
 	}
