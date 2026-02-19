@@ -1,0 +1,12 @@
+{{ template "page-header.gohtml" . }}
+<main>
+    <h1>Create Post</h1>
+    <form method="POST" action="/create-post">
+        <div>
+            <label for="content">Content:</label>
+            <textarea id="content" name="content" rows="10" required></textarea>
+        </div>
+        <button type="submit">Create Post</button>
+    </form>
+</main>
+{{ template "page-footer.gohtml" . }}

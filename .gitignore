@@ -1,1 +1,10 @@
+# Go
 /scribble
+/coverage.out
+
+# Environment variables
+.env
+
+# Sqlite
+*.db
+*.sqlite3

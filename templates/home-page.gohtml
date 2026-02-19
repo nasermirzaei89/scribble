@@ -1,0 +1,13 @@
+{{ template "page-header.gohtml" . }}
+<h1>Home Page</h1>
+{{ with .Posts }}
+{{ range . }}
+<article>
+    <p>{{ .Content }}</p>
+    <small>By {{ .AuthorID }} on {{ .CreatedAt }}</small>
+</article>
+{{ end }}
+{{ else }}
+<p>No posts yet. Be the first to create one!</p>
+{{ end }}
+{{ template "page-footer.gohtml" . }}

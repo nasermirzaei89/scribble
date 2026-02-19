@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scribble - Home</title>
+</head>
+
+<body>
+    <header>
+        <nav>
+            <a href="/" {{if eq .CurrentPath "/" }}class="selected" {{end}}>Home</a>
+            {{ if .IsAuthenticated }}
+            <a href="/create-post" {{if eq .CurrentPath "/create-post" }}class="selected" {{end}}>Create Post</a>
+            <a href="/logout" {{if eq .CurrentPath "/logout" }}class="selected" {{end}}>Logout</a>
+            {{ else }}
+            <a href="/login" {{if eq .CurrentPath "/login" }}class="selected" {{end}}>Login</a>
+            <a href="/register" {{if eq .CurrentPath "/register" }}class="selected" {{end}}>Register</a>
+            {{ end }}
+        </nav>
+    </header>
