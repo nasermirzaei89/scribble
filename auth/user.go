@@ -16,6 +16,7 @@ type User struct {
 type UserRepository interface {
 	Insert(ctx context.Context, user *User) (err error)
 	FindByUsername(ctx context.Context, username string) (user *User, err error)
+	ListUsernames(ctx context.Context) ([]string, error)
 }
 
 type UserByUsernameNotFoundError struct {
