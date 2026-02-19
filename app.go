@@ -40,6 +40,11 @@ func NewApp(ctx context.Context) (*App, error) {
 	postRepo := sqlite3.NewPostRepository(db)
 
 	authSvc := auth.NewService(userRepo, sessionRepo)
+
+	if err := authSvc.LoadBloomFilter(ctx, 10_000, 0.01); err != nil {
+		return nil, fmt.Errorf("failed to load bloom filter: %w", err)
+	}
+
 	contentsSvc := contents.NewService(postRepo)
 
 	sessionName := env.GetString("SESSION_NAME", "scribble-"+random.String(4))
