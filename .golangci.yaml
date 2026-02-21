@@ -24,6 +24,7 @@ linters:
     - nlreturn
     - revive
     - varnamelen
+    - canonicalheader # Disabled due to false positives with http header Hx-Request
   settings:
     gocognit:
       min-complexity: 20

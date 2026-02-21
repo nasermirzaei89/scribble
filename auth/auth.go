@@ -135,6 +135,8 @@ func (svc *Service) GetUser(ctx context.Context, userID string) (*User, error) {
 		return nil, fmt.Errorf("failed to find user by id: %w", err)
 	}
 
+	user.PasswordHash = "" // clear password hash before returning user
+
 	return user, nil
 }
 
@@ -148,6 +150,8 @@ func (svc *Service) GetCurrentUser(ctx context.Context) (*User, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current user: %w", err)
 	}
+
+	user.PasswordHash = "" // clear password hash before returning user
 
 	return user, nil
 }

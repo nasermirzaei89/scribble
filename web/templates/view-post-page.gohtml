@@ -1,0 +1,26 @@
+{{ template "page-header.gohtml" . }}
+<main>
+    <div class="as-container px-4 py-8 flex flex-col gap-4">
+        <article id="post-{{ .ID }}" class="as-card">
+            <div class="as-card-header">
+                <img src="{{ hashed `/images/anonymous.png` }}" alt="{{ .Post.Author.Username }}'s avatar"
+                    class="as-avatar size-12">
+                <div>
+                    <div class="font-medium">@{{ .Post.Author.Username }}</div>
+                    <div class="text-sm opacity-75">{{ formatTime .Post.CreatedAt `Jan 2, 2006 at 3:04pm` }}</div>
+                </div>
+            </div>
+            <p class="as-card-body prose min-w-full" dir="auto">{{ .Post.Content }}</p>
+            <div id="comments" class="as-card-extension flex flex-col gap-4">
+                <h2 class="text-lg font-medium">Comments</h2>
+                {{ template "comment-form.gohtml" . }}
+                {{ with .Post.Comments }}
+                {{ template "comments-loop.gohtml" . }}
+                {{ else }}
+                <p>No comments yet. Be the first to comment!</p>
+                {{ end }}
+            </div>
+        </article>
+    </div>
+</main>
+{{ template "page-footer.gohtml" . }}

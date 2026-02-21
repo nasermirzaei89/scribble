@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -67,6 +68,27 @@ func (repo *PostRepository) Insert(ctx context.Context, post *contents.Post) err
 	}
 
 	return nil
+}
+
+func (repo *PostRepository) Find(ctx context.Context, postID string) (*contents.Post, error) {
+	q := sq.Select(postColumns()...).
+		From(tablePosts).
+		Where(sq.Eq{postFieldID: postID})
+
+	q = q.RunWith(repo.db)
+
+	row := q.QueryRowContext(ctx)
+
+	post, err := scanPost(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, contents.PostNotFoundError{ID: postID}
+		}
+
+		return nil, fmt.Errorf("failed to scan post: %w", err)
+	}
+
+	return post, nil
 }
 
 func (repo *PostRepository) List(ctx context.Context) ([]*contents.Post, error) {

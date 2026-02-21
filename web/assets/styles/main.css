@@ -117,7 +117,31 @@ label {
 }
 
 .as-card {
-    @apply bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-sm p-8;
+    @apply bg-white/80 backdrop-blur-sm border border-gray-200 rounded-lg shadow-sm flex flex-col;
+
+    .as-card-header {
+        @apply p-8 flex flex-row gap-4;
+    }
+
+    .as-card-body {
+        @apply p-8;
+    }
+
+    .as-card-header + .as-card-body {
+        @apply pt-0;
+    }
+
+    .as-card-body:has(+ .as-card-footer) {
+        @apply pb-0;
+    }
+
+    .as-card-footer {
+        @apply px-8 py-4 flex flex-row justify-between;
+    }
+
+    .as-card-extension {
+        @apply p-8 border-t border-gray-200;
+    }
 }
 
 .as-avatar {

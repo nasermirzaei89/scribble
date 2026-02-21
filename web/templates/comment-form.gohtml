@@ -1,0 +1,24 @@
+<div class="flex flex-row gap-4">
+    {{ if .IsAuthenticated }}
+    <img src="{{ hashed `/images/anonymous.png` }}" alt="{{ .CurrentUser.Username }}'s avatar"
+        class="as-avatar size-10">
+    <div class="flex flex-col flex-1">
+        <form id="comment-form" method="POST" action="/p/{{ .Post.ID }}/comment" hx-boost="true">
+            {{ .csrfField }}
+        </form>
+        <div class="font-medium">@{{ .CurrentUser.Username }}</div>
+        <div class="as-text-field">
+            <label for="comment">Comment</label>
+            <div class="as-text-input">
+                <textarea id="comment" name="comment" form="comment-form" rows="4" required
+                    dir="auto"></textarea>
+            </div>
+        </div>
+        <div class="flex flex-row gap-2 mt-2">
+            <button type="submit" class="as-button" form="comment-form">Comment</button>
+        </div>
+    </div>
+    {{ else }}
+    <p><a href="/login" class="as-link pb-4">Log in</a> to comment.</p>
+    {{ end }}
+</div>

@@ -13,6 +13,7 @@ import (
 	"github.com/nasermirzaei89/scribble/auth"
 	"github.com/nasermirzaei89/scribble/contents"
 	"github.com/nasermirzaei89/scribble/db/sqlite3"
+	"github.com/nasermirzaei89/scribble/discuss"
 	"github.com/nasermirzaei89/scribble/random"
 	"github.com/nasermirzaei89/scribble/server"
 	"github.com/nasermirzaei89/scribble/web"
@@ -38,9 +39,11 @@ func NewApp(ctx context.Context) (*App, error) {
 	userRepo := sqlite3.NewUserRepository(db)
 	sessionRepo := sqlite3.NewSessionRepository(db)
 	postRepo := sqlite3.NewPostRepository(db)
+	commentRepo := sqlite3.NewCommentRepository(db)
 
 	authSvc := auth.NewService(userRepo, sessionRepo)
 	contentsSvc := contents.NewService(postRepo)
+	discussSvc := discuss.NewService(commentRepo)
 
 	sessionName := env.GetString("SESSION_NAME", "scribble-"+random.String(4))
 	sessionKey := env.GetString("SESSION_KEY", random.String(32))
@@ -49,7 +52,15 @@ func NewApp(ctx context.Context) (*App, error) {
 	csrfAuthKeys := []byte(env.GetString("CSRF_AUTH_KEY", random.String(32)))
 	csrfTrustedOrigins := env.GetStringSlice("CSRF_TRUSTED_ORIGINS", []string{})
 
-	httpHandler, err := web.NewHandler(authSvc, contentsSvc, cookieStore, sessionName, csrfAuthKeys, csrfTrustedOrigins)
+	httpHandler, err := web.NewHandler(
+		authSvc,
+		contentsSvc,
+		discussSvc,
+		cookieStore,
+		sessionName,
+		csrfAuthKeys,
+		csrfTrustedOrigins,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP handler: %w", err)
 	}

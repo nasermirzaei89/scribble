@@ -17,6 +17,7 @@ import (
 	"github.com/nasermirzaei89/scribble/auth"
 	authcontext "github.com/nasermirzaei89/scribble/auth/context"
 	"github.com/nasermirzaei89/scribble/contents"
+	"github.com/nasermirzaei89/scribble/discuss"
 )
 
 var (
@@ -36,6 +37,7 @@ type Handler struct {
 	static      fs.FS
 	authSvc     *auth.Service
 	contentsSvc *contents.Service
+	discussSvc  *discuss.Service
 	cookieStore *sessions.CookieStore
 	sessionName string
 	assetHashes map[string]string
@@ -46,6 +48,7 @@ var _ http.Handler = (*Handler)(nil)
 func NewHandler(
 	authSvc *auth.Service,
 	contentsSvc *contents.Service,
+	discussSvc *discuss.Service,
 	cookieStore *sessions.CookieStore,
 	sessionName string,
 	csrfAuthKeys []byte,
@@ -57,6 +60,7 @@ func NewHandler(
 		tpl:         nil,
 		authSvc:     authSvc,
 		contentsSvc: contentsSvc,
+		discussSvc:  discussSvc,
 		cookieStore: cookieStore,
 		sessionName: sessionName,
 		assetHashes: make(map[string]string),
@@ -121,6 +125,9 @@ func (h *Handler) registerRoutes() {
 
 	h.mux.Handle("GET /create-post", h.HandleCreatePostPage())
 	h.mux.Handle("POST /create-post", h.HandleCreatePost())
+	h.mux.Handle("GET /p/{postId}", h.HandleViewPostPage())
+	h.mux.Handle("POST /p/{postId}/comment", h.HandlePostComment())
+	h.mux.Handle("GET /p/{postId}/comments/{commentId}/reply", h.HandleReplyForm())
 }
 
 func recoverMiddleware(next http.Handler) http.Handler {
@@ -146,11 +153,26 @@ func recoverMiddleware(next http.Handler) http.Handler {
 
 func (h *Handler) renderTemplate(w http.ResponseWriter, r *http.Request, name string, extraData map[string]any,
 ) {
+	var currentUser *auth.User
+
+	if isAuthenticated(r) {
+		var err error
+
+		currentUser, err = h.authSvc.GetCurrentUser(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to get current user", "error", err)
+			http.Error(w, "Failed to get current user", http.StatusInternalServerError)
+
+			return
+		}
+	}
+
 	data := map[string]any{
 		"CurrentPath":     r.URL.Path,
 		"Lang":            "en",
 		"Dir":             "ltr",
 		"IsAuthenticated": isAuthenticated(r),
+		"CurrentUser":     currentUser,
 	}
 
 	maps.Copy(data, extraData)
@@ -210,14 +232,23 @@ func (h *Handler) HandleHomePage(w http.ResponseWriter, r *http.Request) {
 	h.renderTemplate(w, r, "home-page.gohtml", data)
 }
 
-type PostWithAuthor struct {
+type FullPost struct {
 	contents.Post
 
-	Author *auth.User
+	Author   *auth.User
+	Comments []*CommentWithAuthor
 }
 
-func (h *Handler) preloadPostAuthor(ctx context.Context, posts []*contents.Post) ([]*PostWithAuthor, error) {
-	var result []*PostWithAuthor
+type CommentWithAuthor struct {
+	discuss.Comment
+
+	Author *auth.User
+
+	Replies []*CommentWithAuthor
+}
+
+func (h *Handler) preloadPostAuthor(ctx context.Context, posts []*contents.Post) ([]*FullPost, error) {
+	var result []*FullPost
 
 	// TODO: optimize this by batching user retrieval instead of doing it one by one
 	for _, post := range posts {
@@ -226,7 +257,7 @@ func (h *Handler) preloadPostAuthor(ctx context.Context, posts []*contents.Post)
 			return nil, fmt.Errorf("failed to get author: %w", err)
 		}
 
-		result = append(result, &PostWithAuthor{
+		result = append(result, &FullPost{
 			Post:   *post,
 			Author: author,
 		})
@@ -426,6 +457,157 @@ func (h *Handler) HandleCreatePost() http.Handler {
 		}
 
 		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
+	return h.AuthenticatedOnly(hf)
+}
+
+func (h *Handler) HandleViewPostPage() http.Handler {
+	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		postID := r.PathValue("postId")
+
+		post, err := h.contentsSvc.GetPost(r.Context(), postID)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to get post", "postId", postID, "error", err)
+			http.Error(w, "Post not found", http.StatusNotFound)
+
+			return
+		}
+
+		author, err := h.authSvc.GetUser(r.Context(), post.AuthorID)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to get post author", "authorId", post.AuthorID, "error", err)
+			http.Error(w, "Failed to get post author", http.StatusInternalServerError)
+
+			return
+		}
+
+		comments, err := h.listCommentsWithAuthors(r.Context(), post.ID)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to list comments with authors", "postId", post.ID, "error", err)
+			http.Error(w, "Failed to list comments", http.StatusInternalServerError)
+
+			return
+		}
+
+		data := map[string]any{
+			"Post": FullPost{Post: *post, Author: author, Comments: comments},
+			// "SiteTitle": "View Post", TODO: set post title as site title
+			csrf.TemplateTag: csrf.TemplateField(r),
+		}
+
+		h.renderTemplate(w, r, "view-post-page.gohtml", data)
+	})
+
+	return hf
+}
+
+func (h *Handler) listCommentsWithAuthors(ctx context.Context, postID string) ([]*CommentWithAuthor, error) {
+	comments, err := h.discussSvc.ListComments(ctx, postID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list comments: %w", err)
+	}
+
+	result := make([]*CommentWithAuthor, 0, len(comments))
+	commentsByID := make(map[string]*CommentWithAuthor, len(comments))
+
+	for _, comment := range comments {
+		author, err := h.authSvc.GetUser(ctx, comment.AuthorID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get comment author: %w", err)
+		}
+
+		commentWithAuthor := &CommentWithAuthor{
+			Comment: *comment,
+			Author:  author,
+		}
+
+		result = append(result, commentWithAuthor)
+		commentsByID[comment.ID] = commentWithAuthor
+	}
+
+	roots := make([]*CommentWithAuthor, 0, len(result))
+
+	for _, comment := range result {
+		if comment.ReplyTo == nil {
+			roots = append(roots, comment)
+
+			continue
+		}
+
+		parent, found := commentsByID[*comment.ReplyTo]
+		if !found {
+			roots = append(roots, comment)
+
+			continue
+		}
+
+		parent.Replies = append(parent.Replies, comment)
+	}
+
+	return roots, nil
+}
+
+func (h *Handler) HandlePostComment() http.Handler {
+	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		postID := r.PathValue("postId")
+
+		err := r.ParseForm()
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to parse form", "error", err)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+
+			return
+		}
+
+		content := r.FormValue("comment")
+		replyToID := r.FormValue("reply_to_id")
+
+		currentUser, err := h.authSvc.GetCurrentUser(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to get current user", "error", err)
+			http.Error(w, "Failed to get current user", http.StatusInternalServerError)
+
+			return
+		}
+
+		_, err = h.discussSvc.CreateComment(r.Context(), discuss.CreateCommentRequest{
+			PostID:   postID,
+			AuthorID: currentUser.ID,
+			Content:  content,
+			ReplyTo:  replyToID,
+		})
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to create comment", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+
+			return
+		}
+
+		http.Redirect(w, r, "/p/"+postID, http.StatusSeeOther)
+	})
+
+	return h.AuthenticatedOnly(hf)
+}
+
+func (h *Handler) HandleReplyForm() http.Handler {
+	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("HX-Request") != "true" {
+			http.Error(w, "Direct access is forbidden", http.StatusForbidden)
+
+			return
+		}
+
+		postID := r.PathValue("postId")
+		commentID := r.PathValue("commentId")
+
+		data := map[string]any{
+			csrf.TemplateTag: csrf.TemplateField(r),
+			"PostID":         postID,
+			"CommentID":      commentID,
+		}
+
+		h.renderTemplate(w, r, "reply-form.gohtml", data)
 	})
 
 	return h.AuthenticatedOnly(hf)

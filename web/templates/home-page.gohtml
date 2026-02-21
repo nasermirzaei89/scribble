@@ -4,8 +4,8 @@
         {{ with .Posts }}
         <div class="flex flex-col gap-4">
             {{ range . }}
-            <article class="as-card p-4 flex flex-col gap-4">
-                <div class="flex flex-row gap-4">
+            <article id="post-{{ .ID }}" class="as-card">
+                <div class="as-card-header">
                     <img src="{{ hashed `/images/anonymous.png` }}" alt="{{ .Author.Username }}'s avatar"
                         class="as-avatar size-12">
                     <div>
@@ -13,7 +13,10 @@
                         <div class="text-sm opacity-75">{{ formatTime .CreatedAt `Jan 2, 2006 at 3:04pm` }}</div>
                     </div>
                 </div>
-                <p class="prose min-w-full" dir="auto">{{ .Content }}</p>
+                <p class="as-card-body prose min-w-full" dir="auto">{{ .Content }}</p>
+                <div class="as-card-footer">
+                    <a href="/p/{{ .ID }}#comments" class="as-button variant-text">Comments (0)</a>
+                </div>
             </article>
             {{ end }}
         </div>

@@ -47,3 +47,12 @@ func (svc *Service) ListPosts(ctx context.Context) ([]*Post, error) {
 
 	return posts, nil
 }
+
+func (svc *Service) GetPost(ctx context.Context, postID string) (*Post, error) {
+	post, err := svc.postRepo.Find(ctx, postID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find post: %w", err)
+	}
+
+	return post, nil
+}
