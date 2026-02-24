@@ -91,14 +91,14 @@ func (repo *UserReactionRepository) FindByUserTarget(
 }
 
 func (repo *UserReactionRepository) Upsert(ctx context.Context, reaction *reactions.UserReaction) error {
-	query := `
-INSERT INTO reactions (target_type, target_id, user_id, emoji, created_at)
+	query := fmt.Sprintf(`
+INSERT INTO %s (target_type, target_id, user_id, emoji, created_at)
 VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(target_type, target_id, user_id)
 DO UPDATE SET
     emoji = excluded.emoji,
     created_at = excluded.created_at
-`
+`, tableReactions)
 
 	_, err := repo.db.ExecContext(
 		ctx,

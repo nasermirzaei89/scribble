@@ -873,6 +873,27 @@ func sanitizeReturnToPath(returnTo string) string {
 		return defaultPath
 	}
 
+	if strings.ContainsAny(returnTo, "\\\r\n") {
+		return defaultPath
+	}
+
+	lowerReturnTo := strings.ToLower(returnTo)
+
+	if strings.Contains(lowerReturnTo, "%5c") ||
+		strings.Contains(lowerReturnTo, "%0d") ||
+		strings.Contains(lowerReturnTo, "%0a") {
+		return defaultPath
+	}
+
+	unescapedReturnTo, err := url.PathUnescape(returnTo)
+	if err != nil {
+		return defaultPath
+	}
+
+	if strings.ContainsAny(unescapedReturnTo, "\\\r\n") {
+		return defaultPath
+	}
+
 	parsedReturnTo, err := url.Parse(returnTo)
 	if err != nil {
 		return defaultPath

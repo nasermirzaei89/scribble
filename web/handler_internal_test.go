@@ -9,7 +9,7 @@ import (
 func TestSanitizeReturnToPath(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tt := []struct {
 		name     string
 		input    string
 		expected string
@@ -64,15 +64,35 @@ func TestSanitizeReturnToPath(t *testing.T) {
 			input:    "/foo//bar",
 			expected: "/foo//bar",
 		},
+		{
+			name:     "backslash-based absolute url is rejected",
+			input:    "/\\evil.com",
+			expected: "/",
+		},
+		{
+			name:     "percent-encoded backslash-based absolute url is rejected",
+			input:    "/%5C%5Cevil.com",
+			expected: "/",
+		},
+		{
+			name:     "CRLF in path is rejected",
+			input:    "/foo\r\nLocation:https://evil.com",
+			expected: "/",
+		},
+		{
+			name:     "percent-encoded CRLF in path is rejected",
+			input:    "/foo%0d%0aLocation:https://evil.com",
+			expected: "/",
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := sanitizeReturnToPath(tt.input)
+			result := sanitizeReturnToPath(tc.input)
 
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
