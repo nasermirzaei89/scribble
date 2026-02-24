@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"net/url"
 	"runtime/debug"
+	"strings"
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
@@ -34,7 +36,9 @@ var (
 
 const (
 	defaultSiteTitle = "Scribble"
-	hxRequestTrue    = "true"
+
+	htmxRequestHeader    = "HX-Request"
+	htmxRequestValueTrue = "true"
 )
 
 type Handler struct {
@@ -631,6 +635,12 @@ func (h *Handler) listCommentsWithAuthors(
 			return nil, fmt.Errorf("failed to load comment reactions: %w", err)
 		}
 
+		// TODO: optimize this by batching comment reaction retrieval instead of doing it one by one
+		// Similar to post reactions, this creates N+1 queries for comment reactions.
+		// For a post with many comments, this compounds the performance issue.
+		// Each comment triggers 2 database queries for reaction data (counts + user reaction).
+		// The same batching optimization suggested for posts should be applied here
+		// to load all comment reactions in a single batch operation.
 		commentWithAuthor.Reactions = reactionData
 
 		result = append(result, commentWithAuthor)
@@ -739,7 +749,7 @@ func (h *Handler) HandlePostComment() http.Handler {
 
 func (h *Handler) HandleReplyForm() http.Handler {
 	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("HX-Request") != hxRequestTrue {
+		if r.Header.Get(htmxRequestHeader) != htmxRequestValueTrue {
 			http.Error(w, "Direct access is forbidden", http.StatusForbidden)
 
 			return
@@ -773,13 +783,10 @@ func (h *Handler) HandleToggleReaction() http.Handler {
 			return
 		}
 
-		returnTo := r.FormValue("return_to")
-		if returnTo == "" {
-			returnTo = "/"
-		}
+		returnTo := sanitizeReturnToPath(r.FormValue("return_to"))
 
 		if !isAuthenticated(r) {
-			if r.Header.Get("HX-Request") == hxRequestTrue {
+			if r.Header.Get(htmxRequestHeader) == htmxRequestValueTrue {
 				w.Header().Set("HX-Redirect", "/login")
 				w.WriteHeader(http.StatusUnauthorized)
 
@@ -820,7 +827,7 @@ func (h *Handler) HandleToggleReaction() http.Handler {
 			return
 		}
 
-		if r.Header.Get("HX-Request") != hxRequestTrue {
+		if r.Header.Get(htmxRequestHeader) != htmxRequestValueTrue {
 			http.Redirect(w, r, returnTo, http.StatusSeeOther)
 
 			return
@@ -849,4 +856,35 @@ func (h *Handler) HandleToggleReaction() http.Handler {
 			return
 		}
 	})
+}
+
+func sanitizeReturnToPath(returnTo string) string {
+	const defaultPath = "/"
+
+	if returnTo == "" {
+		return defaultPath
+	}
+
+	if !strings.HasPrefix(returnTo, "/") {
+		return defaultPath
+	}
+
+	if strings.HasPrefix(returnTo, "//") {
+		return defaultPath
+	}
+
+	parsedReturnTo, err := url.Parse(returnTo)
+	if err != nil {
+		return defaultPath
+	}
+
+	if parsedReturnTo.IsAbs() || parsedReturnTo.Host != "" {
+		return defaultPath
+	}
+
+	if parsedReturnTo.Path == "" || !strings.HasPrefix(parsedReturnTo.Path, "/") {
+		return defaultPath
+	}
+
+	return returnTo
 }

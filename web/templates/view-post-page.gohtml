@@ -11,8 +11,10 @@
                 </div>
             </div>
             <div class="as-card-body prose min-w-full" dir="auto">{{ markdown .Post.Content }}</div>
-            <div class="as-card-footer justify-end">
-                {{ template "reactions.gohtml" .Post.Reactions }}
+            <div class="as-card-footer">
+                <div class="ml-auto">
+                    {{ template "reactions.gohtml" .Post.Reactions }}
+                </div>
             </div>
             <div id="comments" class="as-card-extension flex flex-col gap-4">
                 <h2 class="text-lg font-medium">Comments</h2>
