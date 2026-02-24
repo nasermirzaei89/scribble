@@ -18,6 +18,7 @@ import (
 	authcontext "github.com/nasermirzaei89/scribble/auth/context"
 	"github.com/nasermirzaei89/scribble/contents"
 	"github.com/nasermirzaei89/scribble/discuss"
+	"github.com/nasermirzaei89/scribble/reactions"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
@@ -31,20 +32,24 @@ var (
 	staticFS embed.FS
 )
 
-const defaultSiteTitle = "Scribble"
+const (
+	defaultSiteTitle = "Scribble"
+	hxRequestTrue    = "true"
+)
 
 type Handler struct {
-	mux         *http.ServeMux
-	handler     http.Handler
-	tpl         *template.Template
-	static      fs.FS
-	authSvc     *auth.Service
-	contentsSvc *contents.Service
-	discussSvc  *discuss.Service
-	cookieStore *sessions.CookieStore
-	sessionName string
-	assetHashes map[string]string
-	markdown    goldmark.Markdown
+	mux          *http.ServeMux
+	handler      http.Handler
+	tpl          *template.Template
+	static       fs.FS
+	authSvc      *auth.Service
+	contentsSvc  *contents.Service
+	discussSvc   *discuss.Service
+	reactionsSvc *reactions.Service
+	cookieStore  *sessions.CookieStore
+	sessionName  string
+	assetHashes  map[string]string
+	markdown     goldmark.Markdown
 }
 
 var _ http.Handler = (*Handler)(nil)
@@ -53,22 +58,24 @@ func NewHandler(
 	authSvc *auth.Service,
 	contentsSvc *contents.Service,
 	discussSvc *discuss.Service,
+	reactionsSvc *reactions.Service,
 	cookieStore *sessions.CookieStore,
 	sessionName string,
 	csrfAuthKeys []byte,
 	csrfTrustedOrigins []string,
 ) (*Handler, error) {
 	h := &Handler{
-		mux:         nil,
-		handler:     nil,
-		tpl:         nil,
-		authSvc:     authSvc,
-		contentsSvc: contentsSvc,
-		discussSvc:  discussSvc,
-		cookieStore: cookieStore,
-		sessionName: sessionName,
-		assetHashes: make(map[string]string),
-		markdown:    nil,
+		mux:          nil,
+		handler:      nil,
+		tpl:          nil,
+		authSvc:      authSvc,
+		contentsSvc:  contentsSvc,
+		discussSvc:   discussSvc,
+		reactionsSvc: reactionsSvc,
+		cookieStore:  cookieStore,
+		sessionName:  sessionName,
+		assetHashes:  make(map[string]string),
+		markdown:     nil,
 	}
 
 	{
@@ -144,6 +151,7 @@ func (h *Handler) registerRoutes() {
 	h.mux.Handle("GET /p/{postId}", h.HandleViewPostPage())
 	h.mux.Handle("POST /p/{postId}/comment", h.HandlePostComment())
 	h.mux.Handle("GET /p/{postId}/comments/{commentId}/reply", h.HandleReplyForm())
+	h.mux.Handle("POST /react/{targetType}/{targetId}", h.HandleToggleReaction())
 }
 
 func recoverMiddleware(next http.Handler) http.Handler {
@@ -233,7 +241,13 @@ func (h *Handler) HandleHomePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	postsWithAuthors, err := h.preloadPostAuthor(r.Context(), posts)
+	postsWithAuthors, err := h.preloadPostAuthor(
+		r.Context(),
+		posts,
+		h.currentUserIDFromRequest(r),
+		"/",
+		csrf.TemplateField(r),
+	)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "failed to preload post authors", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -242,7 +256,8 @@ func (h *Handler) HandleHomePage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Posts": postsWithAuthors,
+		"Posts":          postsWithAuthors,
+		csrf.TemplateTag: csrf.TemplateField(r),
 	}
 
 	h.renderTemplate(w, r, "home-page.gohtml", data)
@@ -254,6 +269,7 @@ type FullPost struct {
 	Author        *auth.User
 	CommentsCount *int
 	Comments      []*CommentWithAuthor
+	Reactions     *ReactionWidgetData
 }
 
 type CommentWithAuthor struct {
@@ -261,10 +277,26 @@ type CommentWithAuthor struct {
 
 	Author *auth.User
 
-	Replies []*CommentWithAuthor
+	Replies   []*CommentWithAuthor
+	Reactions *ReactionWidgetData
 }
 
-func (h *Handler) preloadPostAuthor(ctx context.Context, posts []*contents.Post) ([]*FullPost, error) {
+type ReactionWidgetData struct {
+	TargetType      reactions.TargetType
+	TargetID        string
+	Options         []reactions.ReactionOption
+	ReturnTo        string
+	IsAuthenticated bool
+	CSRFField       template.HTML
+}
+
+func (h *Handler) preloadPostAuthor(
+	ctx context.Context,
+	posts []*contents.Post,
+	currentUserID *string,
+	returnTo string,
+	csrfField template.HTML,
+) ([]*FullPost, error) {
 	var result []*FullPost
 
 	// TODO: optimize this by batching user retrieval instead of doing it one by one
@@ -279,10 +311,23 @@ func (h *Handler) preloadPostAuthor(ctx context.Context, posts []*contents.Post)
 			return nil, fmt.Errorf("failed to count comments: %w", err)
 		}
 
+		reactionData, err := h.buildReactionWidgetData(
+			ctx,
+			reactions.TargetTypePost,
+			post.ID,
+			currentUserID,
+			returnTo,
+			csrfField,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load post reactions: %w", err)
+		}
+
 		result = append(result, &FullPost{
 			Post:          *post,
 			Author:        author,
 			CommentsCount: &commentsCount,
+			Reactions:     reactionData,
 		})
 	}
 
@@ -488,6 +533,8 @@ func (h *Handler) HandleCreatePost() http.Handler {
 func (h *Handler) HandleViewPostPage() http.Handler {
 	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		postID := r.PathValue("postId")
+		currentUserID := h.currentUserIDFromRequest(r)
+		returnTo := "/p/" + postID
 
 		post, err := h.contentsSvc.GetPost(r.Context(), postID)
 		if err != nil {
@@ -505,7 +552,13 @@ func (h *Handler) HandleViewPostPage() http.Handler {
 			return
 		}
 
-		comments, err := h.listCommentsWithAuthors(r.Context(), post.ID)
+		comments, err := h.listCommentsWithAuthors(
+			r.Context(),
+			post.ID,
+			currentUserID,
+			returnTo,
+			csrf.TemplateField(r),
+		)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "failed to list comments with authors", "postId", post.ID, "error", err)
 			http.Error(w, "Failed to list comments", http.StatusInternalServerError)
@@ -513,8 +566,23 @@ func (h *Handler) HandleViewPostPage() http.Handler {
 			return
 		}
 
+		reactionData, err := h.buildReactionWidgetData(
+			r.Context(),
+			reactions.TargetTypePost,
+			post.ID,
+			currentUserID,
+			returnTo,
+			csrf.TemplateField(r),
+		)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to load post reactions", "postId", post.ID, "error", err)
+			http.Error(w, "Failed to load reactions", http.StatusInternalServerError)
+
+			return
+		}
+
 		data := map[string]any{
-			"Post": FullPost{Post: *post, Author: author, Comments: comments},
+			"Post": FullPost{Post: *post, Author: author, Comments: comments, Reactions: reactionData},
 			// "SiteTitle": "View Post", TODO: set post title as site title
 			csrf.TemplateTag: csrf.TemplateField(r),
 		}
@@ -525,7 +593,13 @@ func (h *Handler) HandleViewPostPage() http.Handler {
 	return hf
 }
 
-func (h *Handler) listCommentsWithAuthors(ctx context.Context, postID string) ([]*CommentWithAuthor, error) {
+func (h *Handler) listCommentsWithAuthors(
+	ctx context.Context,
+	postID string,
+	currentUserID *string,
+	returnTo string,
+	csrfField template.HTML,
+) ([]*CommentWithAuthor, error) {
 	comments, err := h.discussSvc.ListComments(ctx, postID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list comments: %w", err)
@@ -544,6 +618,20 @@ func (h *Handler) listCommentsWithAuthors(ctx context.Context, postID string) ([
 			Comment: *comment,
 			Author:  author,
 		}
+
+		reactionData, err := h.buildReactionWidgetData(
+			ctx,
+			reactions.TargetTypeComment,
+			comment.ID,
+			currentUserID,
+			returnTo,
+			csrfField,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load comment reactions: %w", err)
+		}
+
+		commentWithAuthor.Reactions = reactionData
 
 		result = append(result, commentWithAuthor)
 		commentsByID[comment.ID] = commentWithAuthor
@@ -569,6 +657,42 @@ func (h *Handler) listCommentsWithAuthors(ctx context.Context, postID string) ([
 	}
 
 	return roots, nil
+}
+
+func (h *Handler) currentUserIDFromRequest(r *http.Request) *string {
+	if !isAuthenticated(r) {
+		return nil
+	}
+
+	currentUserID := authcontext.GetSubject(r.Context())
+	if currentUserID == authcontext.Anonymous {
+		return nil
+	}
+
+	return &currentUserID
+}
+
+func (h *Handler) buildReactionWidgetData(
+	ctx context.Context,
+	targetType reactions.TargetType,
+	targetID string,
+	currentUserID *string,
+	returnTo string,
+	csrfField template.HTML,
+) (*ReactionWidgetData, error) {
+	targetReactions, err := h.reactionsSvc.GetTargetReactions(ctx, targetType, targetID, currentUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target reactions: %w", err)
+	}
+
+	return &ReactionWidgetData{
+		TargetType:      targetReactions.TargetType,
+		TargetID:        targetReactions.TargetID,
+		Options:         targetReactions.Options,
+		ReturnTo:        returnTo,
+		IsAuthenticated: currentUserID != nil,
+		CSRFField:       csrfField,
+	}, nil
 }
 
 func (h *Handler) HandlePostComment() http.Handler {
@@ -615,7 +739,7 @@ func (h *Handler) HandlePostComment() http.Handler {
 
 func (h *Handler) HandleReplyForm() http.Handler {
 	hf := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("HX-Request") != "true" {
+		if r.Header.Get("HX-Request") != hxRequestTrue {
 			http.Error(w, "Direct access is forbidden", http.StatusForbidden)
 
 			return
@@ -634,4 +758,95 @@ func (h *Handler) HandleReplyForm() http.Handler {
 	})
 
 	return h.AuthenticatedOnly(hf)
+}
+
+func (h *Handler) HandleToggleReaction() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetType := reactions.TargetType(r.PathValue("targetType"))
+		targetID := r.PathValue("targetId")
+
+		err := r.ParseForm()
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to parse reaction form", "error", err)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+
+			return
+		}
+
+		returnTo := r.FormValue("return_to")
+		if returnTo == "" {
+			returnTo = "/"
+		}
+
+		if !isAuthenticated(r) {
+			if r.Header.Get("HX-Request") == hxRequestTrue {
+				w.Header().Set("HX-Redirect", "/login")
+				w.WriteHeader(http.StatusUnauthorized)
+
+				return
+			}
+
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+
+			return
+		}
+
+		emoji := r.FormValue("emoji")
+
+		currentUser, err := h.authSvc.GetCurrentUser(r.Context())
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to get current user for reaction", "error", err)
+			http.Error(w, "Failed to get current user", http.StatusInternalServerError)
+
+			return
+		}
+
+		err = h.reactionsSvc.ToggleReaction(r.Context(), targetType, targetID, currentUser.ID, emoji)
+		if err != nil {
+			var invalidTargetTypeErr reactions.InvalidTargetTypeError
+
+			var invalidEmojiErr reactions.InvalidEmojiError
+
+			switch {
+			case errors.As(err, &invalidTargetTypeErr):
+				http.Error(w, "Invalid reaction target", http.StatusBadRequest)
+			case errors.As(err, &invalidEmojiErr):
+				http.Error(w, "Invalid reaction emoji", http.StatusBadRequest)
+			default:
+				slog.ErrorContext(r.Context(), "failed to toggle reaction", "error", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+
+			return
+		}
+
+		if r.Header.Get("HX-Request") != hxRequestTrue {
+			http.Redirect(w, r, returnTo, http.StatusSeeOther)
+
+			return
+		}
+
+		widgetData, err := h.buildReactionWidgetData(
+			r.Context(),
+			targetType,
+			targetID,
+			&currentUser.ID,
+			returnTo,
+			csrf.TemplateField(r),
+		)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to load updated reaction widget", "error", err)
+			http.Error(w, "Failed to load reactions", http.StatusInternalServerError)
+
+			return
+		}
+
+		err = h.tpl.ExecuteTemplate(w, "reactions.gohtml", widgetData)
+		if err != nil {
+			slog.ErrorContext(r.Context(), "failed to render reactions template", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+
+			return
+		}
+	})
 }

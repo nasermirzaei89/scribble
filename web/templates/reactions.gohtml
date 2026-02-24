@@ -1,0 +1,31 @@
+{{ with . }}
+<div id="reactions-{{ .TargetType }}-{{ .TargetID }}" class="reaction-widget flex flex-row items-center gap-2" data-target-type="{{ .TargetType }}" data-target-id="{{ .TargetID }}">
+    {{ range .Options }}
+    {{ if .Available }}
+    {{ if $.IsAuthenticated }}
+    <form method="POST" action="/react/{{ $.TargetType }}/{{ $.TargetID }}"
+        hx-post="/react/{{ $.TargetType }}/{{ $.TargetID }}"
+        hx-target="#reactions-{{ $.TargetType }}-{{ $.TargetID }}"
+        hx-swap="outerHTML"
+        hx-push-url="false">
+        {{ $.CSRFField }}
+        <input type="hidden" name="emoji" value="{{ .Emoji }}">
+        <input type="hidden" name="return_to" value="{{ $.ReturnTo }}">
+        <button type="submit" class="as-button variant-text {{ if .Selected }}is-primary{{ end }}" aria-pressed="{{ if .Selected }}true{{ else }}false{{ end }}" title="React with {{ .Emoji }}">
+            <span>{{ .Emoji }} {{ .Count }}</span>
+        </button>
+    </form>
+    {{ else }}
+    <a href="/login" class="as-button variant-text" title="Log in to react">
+        <span>{{ .Emoji }} {{ .Count }}</span>
+    </a>
+    {{ end }}
+    {{ end }}
+    {{ if not .Available }}
+    <button type="button" class="as-button variant-text {{ if .Selected }}is-primary{{ end }}" disabled aria-disabled="true" title="Reaction is no longer available">
+        <span>{{ .Emoji }} {{ .Count }}</span>
+    </button>
+    {{ end }}
+    {{ end }}
+</div>
+{{ end }}

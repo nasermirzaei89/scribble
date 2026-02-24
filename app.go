@@ -15,6 +15,7 @@ import (
 	"github.com/nasermirzaei89/scribble/db/sqlite3"
 	"github.com/nasermirzaei89/scribble/discuss"
 	"github.com/nasermirzaei89/scribble/random"
+	"github.com/nasermirzaei89/scribble/reactions"
 	"github.com/nasermirzaei89/scribble/server"
 	"github.com/nasermirzaei89/scribble/web"
 )
@@ -40,10 +41,12 @@ func NewApp(ctx context.Context) (*App, error) {
 	sessionRepo := sqlite3.NewSessionRepository(db)
 	postRepo := sqlite3.NewPostRepository(db)
 	commentRepo := sqlite3.NewCommentRepository(db)
+	userReactionRepo := sqlite3.NewUserReactionRepository(db)
 
 	authSvc := auth.NewService(userRepo, sessionRepo)
 	contentsSvc := contents.NewService(postRepo)
 	discussSvc := discuss.NewService(commentRepo)
+	reactionsSvc := reactions.NewService(userReactionRepo)
 
 	sessionName := env.GetString("SESSION_NAME", "scribble-"+random.String(4))
 	sessionKey := env.GetString("SESSION_KEY", random.String(32))
@@ -56,6 +59,7 @@ func NewApp(ctx context.Context) (*App, error) {
 		authSvc,
 		contentsSvc,
 		discussSvc,
+		reactionsSvc,
 		cookieStore,
 		sessionName,
 		csrfAuthKeys,

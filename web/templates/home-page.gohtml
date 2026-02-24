@@ -21,6 +21,7 @@
                         ({{ .CommentsCount }})
                         {{ end }}
                     </a>
+                    {{ template "reactions.gohtml" .Reactions }}
                 </div>
             </article>
             {{ end }}

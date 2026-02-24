@@ -6,8 +6,9 @@
             <div class="font-medium">@{{ .Author.Username }}</div>
             <div class="text-sm opacity-75">{{ formatTime .CreatedAt `Jan 2, 2006 at 3:04pm` }}</div>
             <div class="prose min-w-full" dir="auto">{{ markdown .Content }}</div>
-            <div class="flex flex-row gap-2 mt-2">
+            <div class="flex flex-row items-center justify-between gap-2 mt-2">
                 <button class="as-button variant-text" hx-get="/p/{{ .PostID }}/comments/{{ .ID }}/reply" hx-target="closest div" hx-swap="afterend"   hx-on="htmx:afterOnLoad: this.disabled = true">Reply</button>
+                {{ template "reactions.gohtml" .Reactions }}
             </div>
             {{ with .Replies }}
             <div class="pt-4"></div>
