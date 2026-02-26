@@ -63,7 +63,7 @@ func NewApp(ctx context.Context) (*App, error) {
 	authSvc := authentication.NewService(userRepo, sessionRepo, authzClient)
 
 	contentsSvc := contents.NewService(postRepo, authzClient)
-	discussSvc := discuss.NewService(commentRepo)
+	discussSvc := discuss.NewService(commentRepo, authzClient)
 	reactionsSvc := reactions.NewService(userReactionRepo)
 
 	sessionName := env.GetString("SESSION_NAME", "scribble-"+random.String(4))

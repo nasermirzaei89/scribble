@@ -7,3 +7,9 @@ p, system:authenticated, github.com/nasermirzaei89/scribble/contents, -, listPos
 p, system:unauthenticated, github.com/nasermirzaei89/scribble/contents, -, listPosts
 p, system:authenticated, github.com/nasermirzaei89/scribble/contents, *, getPost
 p, system:unauthenticated, github.com/nasermirzaei89/scribble/contents, *, getPost
+
+p, system:authenticated, github.com/nasermirzaei89/scribble/discuss, *, createComment
+p, system:authenticated, github.com/nasermirzaei89/scribble/discuss, *, listComments
+p, system:unauthenticated, github.com/nasermirzaei89/scribble/discuss, *, listComments
+p, system:authenticated, github.com/nasermirzaei89/scribble/discuss, *, countComments
+p, system:unauthenticated, github.com/nasermirzaei89/scribble/discuss, *, countComments

@@ -48,7 +48,7 @@ type Handler struct {
 	static       fs.FS
 	authSvc      *authentication.Service
 	contentsSvc  contents.Service
-	discussSvc   *discuss.Service
+	discussSvc   discuss.Service
 	reactionsSvc *reactions.Service
 	cookieStore  *sessions.CookieStore
 	sessionName  string
@@ -61,7 +61,7 @@ var _ http.Handler = (*Handler)(nil)
 func NewHandler(
 	authSvc *authentication.Service,
 	contentsSvc contents.Service,
-	discussSvc *discuss.Service,
+	discussSvc discuss.Service,
 	reactionsSvc *reactions.Service,
 	cookieStore *sessions.CookieStore,
 	sessionName string,

@@ -6,14 +6,29 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nasermirzaei89/scribble/authorization"
 )
 
-type Service struct {
+const ServiceName = "github.com/nasermirzaei89/scribble/discuss"
+
+type Service interface {
+	CreateComment(ctx context.Context, req CreateCommentRequest) (*Comment, error)
+	ListComments(ctx context.Context, postID string) ([]*Comment, error)
+	CountComments(ctx context.Context, postID string) (int, error)
+}
+
+type BaseService struct {
 	commentRepo CommentRepository
 }
 
-func NewService(commentRepo CommentRepository) *Service {
-	return &Service{
+var _ Service = (*BaseService)(nil)
+
+func NewService(commentRepo CommentRepository, authzClient *authorization.Client) Service { //nolint:ireturn
+	return NewAuthorizationMiddleware(authzClient, NewBaseService(commentRepo))
+}
+
+func NewBaseService(commentRepo CommentRepository) *BaseService {
+	return &BaseService{
 		commentRepo: commentRepo,
 	}
 }
@@ -25,7 +40,7 @@ type CreateCommentRequest struct {
 	ReplyTo  string
 }
 
-func (svc *Service) CreateComment(ctx context.Context, req CreateCommentRequest) (*Comment, error) {
+func (svc *BaseService) CreateComment(ctx context.Context, req CreateCommentRequest) (*Comment, error) {
 	var replyTo *string
 	if req.ReplyTo != "" {
 		replyTo = &req.ReplyTo
@@ -48,7 +63,7 @@ func (svc *Service) CreateComment(ctx context.Context, req CreateCommentRequest)
 	return comment, nil
 }
 
-func (svc *Service) ListComments(ctx context.Context, postID string) ([]*Comment, error) {
+func (svc *BaseService) ListComments(ctx context.Context, postID string) ([]*Comment, error) {
 	comments, err := svc.commentRepo.List(ctx, &ListCommentsParams{PostID: postID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list comments: %w", err)
@@ -57,7 +72,7 @@ func (svc *Service) ListComments(ctx context.Context, postID string) ([]*Comment
 	return comments, nil
 }
 
-func (svc *Service) CountComments(ctx context.Context, postID string) (int, error) {
+func (svc *BaseService) CountComments(ctx context.Context, postID string) (int, error) {
 	count, err := svc.commentRepo.Count(ctx, &CountCommentsParams{PostID: postID})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count comments: %w", err)
