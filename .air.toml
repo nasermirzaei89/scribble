@@ -29,7 +29,7 @@ post_cmd = []
 pre_cmd = ["make npm-build"]
 rerun = false
 rerun_delay = 500
-send_interrupt = false
+send_interrupt = true
 stop_on_error = false
 
 [color]

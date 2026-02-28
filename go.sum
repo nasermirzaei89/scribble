@@ -581,6 +581,8 @@ github.com/nasermirzaei89/server v0.0.0-20260228055704-2b155bb39941 h1:qG1svc7jH
 github.com/nasermirzaei89/server v0.0.0-20260228055704-2b155bb39941/go.mod h1:Tg33aVXh6lkLHGQzABk2KTc/d2J+H9q1aOmIP2P16YA=
 github.com/nasermirzaei89/server v0.0.0-20260228060649-a700a10af035 h1:ThwqoQXQ901M0RTH2DNFPWuh36vcRUaUt/l/BM3YuD8=
 github.com/nasermirzaei89/server v0.0.0-20260228060649-a700a10af035/go.mod h1:Tg33aVXh6lkLHGQzABk2KTc/d2J+H9q1aOmIP2P16YA=
+github.com/nasermirzaei89/server v0.0.0-20260228063006-c6340782eb3e h1:G1fYlKW5OmPZV9SV23dROpId4oaLAG+edTTl4jfAuEQ=
+github.com/nasermirzaei89/server v0.0.0-20260228063006-c6340782eb3e/go.mod h1:Tg33aVXh6lkLHGQzABk2KTc/d2J+H9q1aOmIP2P16YA=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/niklasfasching/go-org v1.9.1 h1:/3s4uTPOF06pImGa2Yvlp24yKXZoTYM+nsIlMzfpg/0=
