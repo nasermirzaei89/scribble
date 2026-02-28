@@ -164,6 +164,7 @@ require (
 	github.com/moricho/tparallel v0.3.2 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/nakabonne/nestif v0.3.1 // indirect
+	github.com/nasermirzaei89/server v0.0.0-20260228060649-a700a10af035 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/nishanths/exhaustive v0.12.0 // indirect
 	github.com/nishanths/predeclared v0.2.2 // indirect

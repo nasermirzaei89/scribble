@@ -19,8 +19,8 @@ import (
 	"github.com/nasermirzaei89/scribble/discuss"
 	"github.com/nasermirzaei89/scribble/random"
 	"github.com/nasermirzaei89/scribble/reactions"
-	"github.com/nasermirzaei89/scribble/server"
 	"github.com/nasermirzaei89/scribble/web"
+	"github.com/nasermirzaei89/server"
 )
 
 type App struct {
@@ -133,6 +133,7 @@ func newServer() *server.Server {
 			CertFile: env.GetString("TLS_CERT_FILE", ""),
 			KeyFile:  env.GetString("TLS_KEY_FILE", ""),
 		},
+		Logger: slog.Default(),
 	}
 
 	return server

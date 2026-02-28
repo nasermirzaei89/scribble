@@ -577,6 +577,10 @@ github.com/nakabonne/nestif v0.3.1 h1:wm28nZjhQY5HyYPx+weN3Q65k6ilSBxDb8v5S81B81
 github.com/nakabonne/nestif v0.3.1/go.mod h1:9EtoZochLn5iUprVDmDjqGKPofoUEBL8U4Ngq6aY7OE=
 github.com/nasermirzaei89/env v1.7.0 h1:W1BP/kUytYRXbN66ul4sfK5osdabrlilX40DkhInseg=
 github.com/nasermirzaei89/env v1.7.0/go.mod h1:K4/p6pl379hP9xm1wa0SAuI0fQM3s5lxM8Gf9K51tNE=
+github.com/nasermirzaei89/server v0.0.0-20260228055704-2b155bb39941 h1:qG1svc7jHx4Uugi8GVXgE3JqQsMGqmwxyRm2R+Ka2k0=
+github.com/nasermirzaei89/server v0.0.0-20260228055704-2b155bb39941/go.mod h1:Tg33aVXh6lkLHGQzABk2KTc/d2J+H9q1aOmIP2P16YA=
+github.com/nasermirzaei89/server v0.0.0-20260228060649-a700a10af035 h1:ThwqoQXQ901M0RTH2DNFPWuh36vcRUaUt/l/BM3YuD8=
+github.com/nasermirzaei89/server v0.0.0-20260228060649-a700a10af035/go.mod h1:Tg33aVXh6lkLHGQzABk2KTc/d2J+H9q1aOmIP2P16YA=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=
 github.com/ncruces/go-strftime v1.0.0/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
 github.com/niklasfasching/go-org v1.9.1 h1:/3s4uTPOF06pImGa2Yvlp24yKXZoTYM+nsIlMzfpg/0=
